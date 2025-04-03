@@ -13,17 +13,19 @@ from keras.models import load_model
 n_mels: 주파수를 어느 구간만큼 나눌 것인지
 fixed_length: 데이터 크기 -> CNN 학습을 위한 모든 이미지의 크기를 맞추기 위함
 '''
+now_time = str(int(datetime.datetime.now().timestamp()))
 def extract_melspectrogram(file_path, n_mels=128, fixed_length=128):
     # 22.05kHz로 샘플링
     # 샘플링: 연속적인 오디오 신호를 일정한 간격으로 데이터(샘플)을 추출하는 과정
-    y, sr = librosa.load(file_path, sr=22050) # y: 오디오 신호 배열 1D), sr: 초당 샘플링 개수
-    '''
-    plt.plot(y)
-    plt.title(f'{file_path}')
-    plt.xlabel('Time')
-    plt.ylabel('Amplitude')
-    plt.show()
-    '''
+    y, sr = librosa.load(file_path, sr=48000) # y: 오디오 신호 배열 1D), sr: 초당 샘플링 개수
+
+    # plt.plot(y)
+    # plt.title(f'{file_path}')
+    # plt.xlabel('Time')
+    # plt.ylabel('Amplitude')
+    # plt.savefig(file_path + '/images/wav/' + now_time, bbox_inches='tight')
+    # plt.show()
+
 
     # 오디오 -> 2D 이미지 변환
     # Mel-Spectogram: 주파수 변화를 시간에 따라 표현한 그래프 -> 오디오의 특징을 담은 2D Image
@@ -56,11 +58,11 @@ def load_data(data_dir, label):
 
 # Mel-Spectrogram 이미지 저장 함수
 def save_spectrogram_image(mel_spec, file_name):
-    plt.figure(figsize=(6, 4))
-    librosa.display.specshow(mel_spec, sr=22050, x_axis='time', y_axis='mel')
+    plt.figure(figsize=(6, 6))
+    librosa.display.specshow(mel_spec, sr=48000, x_axis='time', y_axis='mel')
     plt.colorbar(format='%+2.0f dB')
-    plt.title("Mel-Spectrogram")
-    plt.savefig(file_path + '/images/' + file_name, bbox_inches='tight')
+    # plt.title("Mel-Spectrogram")
+    plt.savefig(file_path + '/images/mel/' + file_name, bbox_inches='tight')
     plt.close()
 
 # CNN 모델 구조 정의
@@ -108,9 +110,9 @@ now_time = str(int(datetime.datetime.now().timestamp()))
 
 file_path = os.path.join(os.getcwd())
 
-wooden_dir = file_path + '/sound_v2/wooden/'
-steel_dir = file_path + '/sound_v2/steel/'
-glass_dir = file_path + '/sound_v2/glass/'
+wooden_dir = file_path + '/sound/wooden/'
+steel_dir = file_path + '/sound/steel/'
+glass_dir = file_path + '/sound/glass/'
 
 # 데이터 로드
 glass_data, glass_labels = load_data(glass_dir, 2) # 유리 = 2
@@ -142,7 +144,7 @@ y = np.array(steel_labels + wooden_labels + glass_labels)
 X = X[..., np.newaxis]  # CNN 입력을 위한 채널 차원 추가 (샘플개수, 128, 128, 1)
 
 # 데이터셋 분할 (Train/Test)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 print("학습 데이터 크기: " + str(len(X_train)) + "검증 데이터 크기: " + str(len(X_test)))
 
 # 모델 컴파일 및 학습
@@ -150,7 +152,7 @@ model = build_model((X.shape[1], X.shape[2], 1))  # Mel-Spectrogram 입력
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 # 학습 후 학습 과정 저장
-history = model.fit(X_train, y_train, epochs=20, batch_size=10, validation_data=(X_test, y_test))
+history = model.fit(X_train, y_train, epochs=10, batch_size=4, validation_data=(X_test, y_test))
 
 model.save(file_path+'/model/'+now_time+'.h5')
 

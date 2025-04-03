@@ -5,16 +5,16 @@ import soundfile as sf
 
 # 입력 및 출력 폴더 설정
 file_path = os.path.join(os.getcwd())
-wooden_dir = file_path + '/padding/wooden/'
-steel_dir = file_path + '/padding/steel/'
-glass_dir = file_path + '/padding/glass/'
+wooden_dir = file_path + '/sound/wooden/'
+steel_dir = file_path + '/sound/steel/'
+glass_dir = file_path + '/sound/glass/'
 
-output_folder = file_path + "/padding"
+output_folder = file_path + "/sound"
 
 os.makedirs(output_folder, exist_ok=True)
 
-TARGET_DURATION = 3  # 목표 길이 (초)
-SAMPLE_RATE = 22050  # 오디오 샘플링 레이트
+TARGET_DURATION = 2  # 목표 길이 (초)
+SAMPLE_RATE = 48000  # 오디오 샘플링 레이트
 
 
 def process_audio(file_path):
