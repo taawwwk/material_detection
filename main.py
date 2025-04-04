@@ -15,7 +15,7 @@ fixed_length: 데이터 크기 -> CNN 학습을 위한 모든 이미지의 크�
 '''
 now_time = str(int(datetime.datetime.now().timestamp()))
 def extract_melspectrogram(file_path, n_mels=128, fixed_length=128):
-    # 22.05kHz로 샘플링
+    # 48kHz로 샘플링
     # 샘플링: 연속적인 오디오 신호를 일정한 간격으로 데이터(샘플)을 추출하는 과정
     y, sr = librosa.load(file_path, sr=48000) # y: 오디오 신호 배열 1D), sr: 초당 샘플링 개수
 
@@ -41,6 +41,7 @@ def extract_melspectrogram(file_path, n_mels=128, fixed_length=128):
     else: # 긴 오디오는 일정 길이만 잘라서 사용 (truncation)
         mel_spec_db = mel_spec_db[:, :fixed_length]
 
+    # print(f'about mel_spec_db: {mel_spec_db.shape} {mel_spec_db.data}')
     return mel_spec_db
 
 def load_data(data_dir, label):
@@ -52,8 +53,10 @@ def load_data(data_dir, label):
             mel_spec = extract_melspectrogram(file_path)
             data.append(mel_spec)
             labels.append(label)
+
     print(f'data length: {len(data)}')
     print(f'labels length: {len(labels)}')
+
     return data, labels
 
 # Mel-Spectrogram 이미지 저장 함수
@@ -82,12 +85,13 @@ def build_model(input_shape):
     return model
 
 # 학습 과정 시각화 및 저장
-def plot_training_history(history, file_name):
+def plot_training_history(history, test_loss, test_accuracy, file_name):
     fig, ax = plt.subplots(2, 1, figsize=(8, 6))
 
     # Accuracy 그래프
     ax[0].plot(history.history['accuracy'], label='Train Accuracy')
     ax[0].plot(history.history['val_accuracy'], label='Validation Accuracy')
+    ax[0].axhline(y=test_accuracy, color='r', linestyle='--', label='Test Accuracy')
     ax[0].set_title('Model Accuracy')
     ax[0].set_xlabel('Epoch')
     ax[0].set_ylabel('Accuracy')
@@ -96,6 +100,7 @@ def plot_training_history(history, file_name):
     # Loss 그래프
     ax[1].plot(history.history['loss'], label='Train Loss')
     ax[1].plot(history.history['val_loss'], label='Validation Loss')
+    ax[1].axhline(y=test_loss, color='r', linestyle='--', label='Test Loss')
     ax[1].set_title('Model Loss')
     ax[1].set_xlabel('Epoch')
     ax[1].set_ylabel('Loss')
@@ -104,7 +109,6 @@ def plot_training_history(history, file_name):
     plt.tight_layout()
     plt.savefig(file_name, bbox_inches='tight')
     plt.close()
-
 
 now_time = str(int(datetime.datetime.now().timestamp()))
 
@@ -144,16 +148,20 @@ y = np.array(steel_labels + wooden_labels + glass_labels)
 X = X[..., np.newaxis]  # CNN 입력을 위한 채널 차원 추가 (샘플개수, 128, 128, 1)
 
 # 데이터셋 분할 (Train/Test)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-print("학습 데이터 크기: " + str(len(X_train)) + "검증 데이터 크기: " + str(len(X_test)))
+X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.5, random_state=42)  # 50% train, 50% temp
+X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.6, random_state=42)  # 60% test, 40% validation
+print("학습 데이터 크기: " + str(len(X_train)) + " 검증 데이터 크기: " + str(len(X_val)) + " 테스트 데이터 크기: " + str(len(X_test)))
 
 # 모델 컴파일 및 학습
 model = build_model((X.shape[1], X.shape[2], 1))  # Mel-Spectrogram 입력
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 # 학습 후 학습 과정 저장
-history = model.fit(X_train, y_train, epochs=10, batch_size=4, validation_data=(X_test, y_test))
+history = model.fit(X_train, y_train, epochs=10, batch_size=5, validation_data=(X_val, y_val))
 
-model.save(file_path+'/model/'+now_time+'.h5')
+test_loss, test_accuracy = model.evaluate(X_test, y_test)
+print(f"Test Accuracy: {test_accuracy}, Test Loss: {test_loss}")
 
-plot_training_history(history, "graph/training_plot_" + now_time + ".png")
+model.save(file_path+'/model/'+ now_time +'.h5')
+
+plot_training_history(history, test_loss, test_accuracy, "graph/training_plot_" + now_time + ".png")
