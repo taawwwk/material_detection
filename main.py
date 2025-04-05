@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
 from keras.models import load_model
 
 # 데이터 로드 및 전처리
@@ -79,6 +81,7 @@ def build_model(input_shape):
         tf.keras.layers.MaxPooling2D((2,2)),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dropout(0.3),
         tf.keras.layers.Dense(3, activation='softmax')  # steel, wooden, glass
     ])
     model.summary()
@@ -161,6 +164,25 @@ history = model.fit(X_train, y_train, epochs=10, batch_size=5, validation_data=(
 
 test_loss, test_accuracy = model.evaluate(X_test, y_test)
 print(f"Test Accuracy: {test_accuracy}, Test Loss: {test_loss}")
+
+# 예측 결과 출력
+y_pred = model.predict(X_test)
+y_pred_labels = np.argmax(y_pred, axis=1)
+
+# Classification Report
+print("Classification Report:")
+print(classification_report(y_test, y_pred_labels, target_names=["Steel", "Wooden", "Glass"]))
+
+# Confusion Matrix 시각화
+conf_matrix = confusion_matrix(y_test, y_pred_labels)
+plt.figure(figsize=(6,5))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=["Steel", "Wooden", "Glass"], yticklabels=["Steel", "Wooden", "Glass"])
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix')
+plt.tight_layout()
+plt.savefig("graph/confusion_matrix_" + now_time + ".png")
+plt.close()
 
 model.save(file_path+'/model/'+ now_time +'.h5')
 
