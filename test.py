@@ -1,0 +1,166 @@
+import os
+import numpy as np
+import tensorflow as tf
+import librosa
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.utils.class_weight import compute_class_weight
+from scipy.ndimage import zoom
+from collections import defaultdict
+
+# === 설정 ===
+MODEL_PATH = './model/1744356880.h5'
+SEGMENT_DIR = './test_segments'
+SAMPLE_RATE = 48000
+N_MELS = 128
+HOP_LENGTH = 512
+EXPECTED_WIDTH = 146
+class_names = ['steel', 'wooden', 'glass']
+
+# === Mel-Spectrogram 전처리 함수 ===
+def audio_to_melspectrogram(filepath):
+    y, sr = librosa.load(filepath, sr=SAMPLE_RATE)
+    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=N_MELS, hop_length=HOP_LENGTH)
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+    return mel_db
+
+def normalize_spectrogram(spec):
+    return (spec - np.min(spec)) / (np.max(spec) - np.min(spec))
+
+def resize_spec_by_scaling(spec, target_width=128):
+    current_height, current_width = spec.shape
+    zoom_factor = target_width / current_width
+    spec_resized = zoom(spec, (1, zoom_factor))  # only scale time-axis
+    return spec_resized
+
+def resize_spec(spec, expected_width):
+    if spec.shape[1] > expected_width:
+        return spec[:, :expected_width]
+    elif spec.shape[1] < expected_width:
+        pad_width = expected_width - spec.shape[1]
+        return np.pad(spec, ((0, 0), (0, pad_width)), mode='constant')
+    return spec
+
+def process_all_segments(segment_dir):
+    X_data = []
+    y_true = []
+    file_info = []
+
+    for label in os.listdir(segment_dir):
+        label_path = os.path.join(segment_dir, label)
+        if not os.path.isdir(label_path):
+            continue
+        for fname in sorted(os.listdir(label_path)):
+            if fname.endswith('.wav'):
+                fpath = os.path.join(label_path, fname)
+                mel = audio_to_melspectrogram(fpath)
+                mel = normalize_spectrogram(mel)
+                mel = resize_spec(mel, EXPECTED_WIDTH)
+                print(f"[DEBUG] {fname}: mel shape = {mel.shape}, label = {label}")
+                X_data.append(mel[..., np.newaxis])
+                y_true.append(class_names.index(label))  # 정수 라벨
+                file_info.append((label, fname, fpath))
+
+    return np.array(X_data), np.array(y_true), file_info
+
+def load_data(data_dir, label):
+    data = []
+    labels = []
+
+    for file_name in sorted(os.listdir(data_dir)):
+        file_path = os.path.join(data_dir, file_name)
+        if not os.path.isfile(file_path):
+            continue
+        if file_name.endswith('.wav'):
+            mel = audio_to_melspectrogram(file_path)
+            mel = normalize_spectrogram(mel)
+            mel = resize_spec(mel, EXPECTED_WIDTH)
+            data.append(mel[..., np.newaxis])
+            labels.append(label)
+
+    return np.array(data), np.array(labels)
+
+def save_spectrogram_image(mel_spec, file_name):
+    plt.figure(figsize=(6, 6))
+    librosa.display.specshow(mel_spec, sr=48000, x_axis='time', y_axis='mel')
+    plt.colorbar(format='%+2.0f dB')
+    # plt.title("Mel-Spectrogram")
+    plt.savefig('./test/mel/' + file_name, bbox_inches='tight')
+    plt.close()
+
+# === 예측 및 시각화 ===
+def predict_and_visualize():
+    print("✅ 모델 불러오는 중...")
+    model = tf.keras.models.load_model(MODEL_PATH)
+
+    print("✅ 데이터 전처리 중...")
+    X_test, y_true, file_info = process_all_segments(SEGMENT_DIR)
+
+    print("✅ 예측 수행 중...")
+    y_pred_probs = model.predict(X_test)
+    y_pred = np.argmax(y_pred_probs, axis=1)
+
+    print("\n🎯 예측 결과:")
+    for i, (true_label, fname, _) in enumerate(file_info):
+        probs = y_pred_probs[i]
+        print(f"{fname} (실제: {true_label}) → softmax = {np.round(probs, 3)}")
+
+    # 정확도 출력
+    acc = accuracy_score(y_true, y_pred)
+    print(f"\n✅ 전체 정확도: {acc*100:.2f}%")
+
+    # 라벨별 정확도 계산
+    class_correct = defaultdict(int)
+    class_total = defaultdict(int)
+
+    for true, pred in zip(y_true, y_pred):
+        class_total[true] += 1
+        if true == pred:
+            class_correct[true] += 1
+
+    per_class_accuracy = {class_names[i]: (class_correct[i] / class_total[i]) * 100 if class_total[i] > 0 else 0 for i in range(len(class_names))}
+
+    # 막대 그래프 시각화
+    keys = list(per_class_accuracy.keys())
+    values = [per_class_accuracy[k] for k in keys]
+    plt.bar(keys, values, color='skyblue', align='center')
+    plt.xticks(ticks=np.arange(len(keys)), labels=keys)
+    plt.xlabel('Material Label')
+    plt.ylabel('Accuracy (%)')
+    plt.ylim(0, 100)
+    plt.title('Per-Class Accuracy')
+    plt.tight_layout()
+    plt.savefig("graph/per_class_accuracy.png")
+    plt.close()
+
+    # 시간별, 클래스별 정확도 시각화
+    label_map = {0: "steel", 1: "wooden", 2: "glass"}
+    time_accuracy_per_class = defaultdict(lambda: defaultdict(list))
+
+    for (true_label, fname, _), pred_idx in zip(file_info, y_pred):
+        time_key = fname.split('.')[0]  # e.g., "0.5s"
+        time_accuracy_per_class[time_key][true_label].append(int(true_label == pred_idx))
+
+    sorted_keys = sorted(time_accuracy_per_class.keys(), key=lambda x: float(x.replace('s','')))
+    x_ticks = [float(k.replace('s','')) for k in sorted_keys]
+
+    plt.figure(figsize=(8, 5))
+    for label_idx, label_name in label_map.items():
+        y_values = [
+            np.mean(time_accuracy_per_class[k][label_idx]) * 100 if label_idx in time_accuracy_per_class[k] else 0
+            for k in sorted_keys
+        ]
+        plt.plot(x_ticks, y_values, marker='o', label=label_name)
+
+    plt.xlabel('Audio Duration (sec)')
+    plt.ylabel('Accuracy (%)')
+    plt.title('Accuracy by Audio Duration per Class')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("graph/accuracy_by_duration_per_class.png")
+    plt.close()
+
+if __name__ == '__main__':
+    predict_and_visualize()

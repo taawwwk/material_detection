@@ -7,8 +7,10 @@ import matplotlib.pyplot as plt
 import os
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.utils.class_weight import compute_class_weight
 import seaborn as sns
 from keras.models import load_model
+from collections import defaultdict
 
 # 데이터 로드 및 전처리
 '''
@@ -16,7 +18,7 @@ n_mels: 주파수를 어느 구간만큼 나눌 것인지
 fixed_length: 데이터 크기 -> CNN 학습을 위한 모든 이미지의 크기를 맞추기 위함
 '''
 now_time = str(int(datetime.datetime.now().timestamp()))
-def extract_melspectrogram(file_path, n_mels=128, fixed_length=128):
+def extract_melspectrogram(file_path, n_mels=128, fixed_length=146):
     # 48kHz로 샘플링
     # 샘플링: 연속적인 오디오 신호를 일정한 간격으로 데이터(샘플)을 추출하는 과정
     y, sr = librosa.load(file_path, sr=48000) # y: 오디오 신호 배열 1D), sr: 초당 샘플링 개수
@@ -37,7 +39,7 @@ def extract_melspectrogram(file_path, n_mels=128, fixed_length=128):
     mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
 
     # 크기 맞추기 (Padding or Truncation)
-    if mel_spec_db.shape[1] < fixed_length: # 짧은 길이의 오디오는 0을 추가함 (padding)
+    if mel_spec_db.shape[1] < fixed_length: # 짧은 길이의 오디오는 0을 추가함 (test)
         pad_width = fixed_length - mel_spec_db.shape[1]
         mel_spec_db = np.pad(mel_spec_db, ((0, 0), (0, pad_width)), mode='constant')
     else: # 긴 오디오는 일정 길이만 잘라서 사용 (truncation)
@@ -49,8 +51,10 @@ def extract_melspectrogram(file_path, n_mels=128, fixed_length=128):
 def load_data(data_dir, label):
     data = []
     labels = []
-    for file_name in os.listdir(data_dir):
+    for file_name in sorted(os.listdir(data_dir)):
         file_path = os.path.join(data_dir, file_name)
+        if not os.path.isfile(file_path):
+            continue
         if file_name.endswith('.wav'):
             mel_spec = extract_melspectrogram(file_path)
             data.append(mel_spec)
@@ -122,9 +126,9 @@ steel_dir = file_path + '/sound/steel/'
 glass_dir = file_path + '/sound/glass/'
 
 # 데이터 로드
-glass_data, glass_labels = load_data(glass_dir, 2) # 유리 = 2
 wooden_data, wooden_labels = load_data(wooden_dir, 1)  # 나무 = 1
 steel_data, steel_labels = load_data(steel_dir, 0)  # 철 = 0
+glass_data, glass_labels = load_data(glass_dir, 2) # 유리 = 2
 
 # GPU 가속
 physical_devices = tf.config.list_physical_devices('GPU')
@@ -155,12 +159,17 @@ X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.5, random_
 X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.6, random_state=42)  # 60% test, 40% validation
 print("학습 데이터 크기: " + str(len(X_train)) + " 검증 데이터 크기: " + str(len(X_val)) + " 테스트 데이터 크기: " + str(len(X_test)))
 
+# 클래스 가중치 계산
+class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
+class_weight_dict = dict(enumerate(class_weights))
+print("클래스 가중치:", class_weight_dict)
+
 # 모델 컴파일 및 학습
 model = build_model((X.shape[1], X.shape[2], 1))  # Mel-Spectrogram 입력
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 # 학습 후 학습 과정 저장
-history = model.fit(X_train, y_train, epochs=10, batch_size=5, validation_data=(X_val, y_val))
+history = model.fit(X_train, y_train, epochs=20, batch_size=10, validation_data=(X_val, y_val), class_weight=class_weight_dict)
 
 test_loss, test_accuracy = model.evaluate(X_test, y_test)
 print(f"Test Accuracy: {test_accuracy}, Test Loss: {test_loss}")
@@ -173,10 +182,36 @@ y_pred_labels = np.argmax(y_pred, axis=1)
 print("Classification Report:")
 print(classification_report(y_test, y_pred_labels, target_names=["Steel", "Wooden", "Glass"]))
 
-# Confusion Matrix 시각화
+# 라벨별 정확도 계산
+class_correct = defaultdict(int)
+class_total = defaultdict(int)
+
+for true, pred in zip(y_test, y_pred_labels):
+    class_total[true] += 1
+    if true == pred:
+        class_correct[true] += 1
+
+per_class_accuracy = {i: (class_correct[i] / class_total[i]) * 100 if class_total[i] > 0 else 0 for i in range(3)}
+
+# 막대 그래프 시각화
+plt.figure(figsize=(6, 4))
+keys = list(per_class_accuracy.keys())
+values = [per_class_accuracy[k] for k in keys]
+plt.bar(keys, values, color='skyblue', align='center')
+plt.xticks(ticks=np.arange(len(keys)), labels=keys)
+plt.ylabel('Accuracy (%)')
+plt.ylim(0, 100)
+plt.title('Per-Class Accuracy')
+plt.tight_layout()
+plt.show()
+
+# Confusion Matrix 시각화 및 저장
 conf_matrix = confusion_matrix(y_test, y_pred_labels)
-plt.figure(figsize=(6,5))
-sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=["Steel", "Wooden", "Glass"], yticklabels=["Steel", "Wooden", "Glass"])
+
+plt.figure(figsize=(6, 5))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues',
+            xticklabels=["Steel", "Wooden", "Glass"],
+            yticklabels=["Steel", "Wooden", "Glass"])
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
 plt.title('Confusion Matrix')
