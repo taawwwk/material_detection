@@ -2,6 +2,9 @@ import os
 import numpy as np
 import librosa
 import soundfile as sf
+import joblib
+
+label_encoder = joblib.load('./model/label_encoder_1745329693.joblib')
 
 # 입력 및 출력 폴더 설정
 file_path = os.path.join(os.getcwd())

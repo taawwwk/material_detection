@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # === 설정 ===
 TEST_AUDIO_DIR = './sound'
-SEGMENT_DIR = './test_segments'
+SEGMENT_DIR = 'pattern_sounds'
 SAMPLE_RATE = 48000
 SEGMENT_DURATIONS = [0.5 * i for i in range(1, 11)]  # 0.5초 ~ 5.0초
 N_MELS = 128
