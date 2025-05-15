@@ -87,6 +87,7 @@ def build_model(input_shape):
     model.summary()
     return model
 
+# 학습 기록 그래프 생성 함수
 def plot_training_history(history, test_loss, test_accuracy, file_name):
     fig, ax = plt.subplots(2, 1, figsize=(8, 6))
 
@@ -112,6 +113,7 @@ def plot_training_history(history, test_loss, test_accuracy, file_name):
     plt.savefig(file_name, bbox_inches='tight')
     plt.close()
 
+# 혼동행렬 함수
 def plot_confusion_matrix(y_true, y_pred, classes, title, filename, cmap='Blues'):
     conf_matrix = confusion_matrix(y_true, y_pred)
     plt.figure(figsize=(6, 5))
@@ -126,9 +128,11 @@ def plot_confusion_matrix(y_true, y_pred, classes, title, filename, cmap='Blues'
     plt.close()
 
 # Training functions
-
+'''
+CNN 모델 구조 생성 및 학습 함수
+'''
 def train_cnn_model(X_train, y_train, X_val, y_val, X_test, y_test, input_shape, classes, file_path, now_time):
-    cnn_model = build_model(input_shape)  # Mel-Spectrogram 입력
+    cnn_model = build_model(input_shape)  # Input Type: Mel Spectrogram(2D)
     cnn_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
     history = cnn_model.fit(X_train, y_train, epochs=20, batch_size=16, validation_data=(X_val, y_val))
@@ -167,6 +171,9 @@ def train_cnn_model(X_train, y_train, X_val, y_val, X_test, y_test, input_shape,
     print(f"Saved CNN test labels and predictions to {results_dir}")
     print("**************************************************************************************************************")
 
+'''
+SVM 모델 구조 생성 및 학습 함수
+'''
 def train_svm_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_flat, y_test_flat, classes, file_path, now_time):
     scaler = StandardScaler()
     X_train_flat = scaler.fit_transform(X_train_flat)
@@ -196,6 +203,9 @@ def train_svm_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_f
     print(f"Saved SVM test labels and predictions to {results_dir}")
     print("**************************************************************************************************************")
 
+'''
+MLP 모델 구조 생성 및 학습 함수
+'''
 def train_mlp_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_flat, y_test_flat, classes, file_path, now_time):
     scaler = StandardScaler()
     X_train_flat = scaler.fit_transform(X_train_flat)
@@ -248,16 +258,24 @@ def train_mlp_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_f
     print(f"Saved Keras MLP test labels and predictions to {results_dir}")
     print("**************************************************************************************************************")
 
-# Main execution
+'''
+##########################################
+########### Main Execution ###############
+##########################################
+'''
+
 
 now_time = str(int(datetime.datetime.now().timestamp()))
 
+# 프로젝트 위치
 file_path = os.path.join(os.getcwd())
 
+# 재질 사운드 데이터 경로
 wooden_dir = file_path + '/sound/wooden/'
 steel_dir = file_path + '/sound/steel/'
 glass_dir = file_path + '/sound/glass/'
 
+# 라벨 리스트
 class_names = ['steel', 'wooden', 'glass']
 
 # 데이터 로드
@@ -275,12 +293,6 @@ joblib.dump(le, file_path + '/model/label_encoder_' + now_time + '.joblib')
 X = np.array(steel_data + wooden_data + glass_data) # (샘플개수, 128, 128)
 X = X[..., np.newaxis]  # CNN 입력을 위한 채널 차원 추가 (샘플개수, 128, 128, 1)
 
-# GPU 가속
-physical_devices = tf.config.list_physical_devices('GPU')
-try:
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
-except:
-    pass
 
 # 데이터셋 분할 (Train/Test)
 X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.5, random_state=42)  # 50% train, 50% temp
@@ -288,7 +300,7 @@ X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.6, r
 print("학습 데이터 크기: " + str(len(X_train)) + " 검증 데이터 크기: " + str(len(X_val)) + " 테스트 데이터 크기: " + str(len(X_test)))
 print("**************************************************************************************************************")
 
-# Flatten data for traditional ML models
+# Flatten data for ML models (SVM,MLP)
 X_flat = X.reshape((X.shape[0], -1))
 
 # Split data for flat arrays
@@ -300,8 +312,6 @@ X_val_flat, X_test_flat, y_val_flat, y_test_flat = train_test_split(
 # Train models in order
 train_cnn_model(X_train, y_train, X_val, y_val, X_test, y_test, (X.shape[1], X.shape[2], 1), class_names, file_path, now_time)
 
-# train_svm_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_flat, y_test_flat, class_names, file_path, now_time)
-
-# train_mlp_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_flat, y_test_flat, class_names, file_path, now_time)
+train_svm_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_flat, y_test_flat, class_names, file_path, now_time)
 
 train_mlp_model(X_train_flat, y_train_flat, X_val_flat, y_val_flat, X_test_flat, y_test_flat, le.classes_, file_path, now_time)

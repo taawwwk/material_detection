@@ -87,10 +87,3 @@ if __name__ == '__main__':
     # Step 2: Mel-Spectrogram 변환
     X_test, info = process_all_segments(SEGMENT_DIR)
     print(f'\n✅ 변환 완료: 총 {len(X_test)}개 Mel-Spectrogram 생성됨.')
-
-    # (선택) 시각화 예시
-    # import matplotlib.pyplot as plt
-    # plt.imshow(X_test[0].squeeze(), origin='lower', aspect='auto', cmap='magma')
-    # plt.title(f"{info[0]}")
-    # plt.colorbar()
-    # plt.show()

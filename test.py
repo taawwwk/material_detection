@@ -12,6 +12,10 @@ import joblib
 import time
 from sklearn.preprocessing import LabelEncoder
 
+'''
+모델 예측 테스트 파일
+'''
+
 # === 설정 ===
 CNN_MODEL_PATH = './model/1745329693.h5'
 MLP_MODEL_PATH = './model/mlp_1745329693.joblib'
@@ -132,18 +136,6 @@ def predict_and_visualize():
 
     per_class_accuracy = {class_names[i]: (class_correct[i] / class_total[i]) * 100 if class_total[i] > 0 else 0 for i in range(len(class_names))}
 
-    # 막대 그래프 시각화
-    # keys = list(per_class_accuracy.keys())
-    # values = [per_class_accuracy[k] for k in keys]
-    # plt.bar(keys, values, color='skyblue', align='center')
-    # plt.xticks(ticks=np.arange(len(keys)), labels=keys)
-    # plt.xlabel('Material Label')
-    # plt.ylabel('Accuracy (%)')
-    # plt.ylim(0, 100)
-    # plt.title('Per-Class Accuracy')
-    # plt.tight_layout()
-    # plt.savefig("graph/per_class_accuracy.png")
-    # plt.close()
 
     # 시간별, 클래스별 정확도 시각화
     label_map = {i: name for i, name in enumerate(class_names)}

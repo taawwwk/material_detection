@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import font_manager
 
+'''
+파형데이터 -> Mel-Spectogram 변환 테스트
+'''
 plt.rc('font', family='Times New Roman')
 
 steel_data = os.getcwd() + '/sound/steel/steel_2_part25.wav'
