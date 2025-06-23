@@ -13,20 +13,30 @@ import time
 from sklearn.preprocessing import LabelEncoder
 
 '''
-모델 예측 테스트 파일
+***모델 성능 테스트***
+
+테스트할 모델의 경로
+테스트 데이터 경로
+오디오 처리 파라미터
+라벨 인코딩
+설정하고 실행
 '''
 
-# === 설정 ===
-CNN_MODEL_PATH = './model/1745329693.h5'
-MLP_MODEL_PATH = './model/mlp_1745329693.joblib'
-SVM_MODEL_PATH = './model/svm_1745329693.joblib'
+# 모델 경로
+CNN_MODEL_PATH = './model/cnn_1750671489.h5'
+MLP_MODEL_PATH = './model/keras_mlp_1750671489.h5'
+SVM_MODEL_PATH = './model/svm_1750671489.joblib'
+
+# 테스트 파일 경로
 SEGMENT_DIR = './test'
+
 SAMPLE_RATE = 48000
 N_MELS = 128
 HOP_LENGTH = 512
 EXPECTED_WIDTH = 146
 
-label_encoder = joblib.load('./model/label_encoder_1745329693.joblib')
+# 라벨 인코더 파일 경로
+label_encoder = joblib.load('./model/label_encoder_1750671489.joblib')
 class_names = list(label_encoder.classes_)
 
 # === Mel-Spectrogram 전처리 함수 ===
@@ -170,7 +180,7 @@ def predict_and_visualize():
 def evaluate_models_over_durations():
     print("✅ 모델 불러오는 중...")
     cnn_model = tf.keras.models.load_model(CNN_MODEL_PATH)
-    mlp_model = joblib.load(MLP_MODEL_PATH)
+    mlp_model = tf.keras.models.load_model(MLP_MODEL_PATH)
     svm_model = joblib.load(SVM_MODEL_PATH)
 
     print("✅ 입력 시간별 데이터 전처리 중...")
@@ -204,12 +214,14 @@ def evaluate_models_over_durations():
 
         # MLP
         start = time.time()
-        mlp_pred = mlp_model.predict(X_flat)
+        mlp_pred_probs = mlp_model.predict(X_flat)
+        mlp_pred = np.argmax(mlp_pred_probs, axis=1)
         mlp_time = (time.time() - start) * 1000 / len(X_dur)
         mlp_acc = accuracy_score(y_dur, mlp_pred)
         print(f"🔧 MLP   | Acc: {mlp_acc:.3f} | Time: {mlp_time:.2f} ms")
         # MLP prediction debug
-        print(f"[DEBUG] MLP prediction: {mlp_pred}")
+        print(f"[DEBUG] MLP raw probs: {np.round(mlp_pred_probs, 3)}")
+        print(f"[DEBUG] MLP predicted labels: {mlp_pred}")
 
         # SVM
         start = time.time()

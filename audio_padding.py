@@ -4,7 +4,10 @@ import librosa
 import soundfile as sf
 import joblib
 
-label_encoder = joblib.load('./model/label_encoder_1745329693.joblib')
+'''
+오디오 데이터 분할
+TARGET_DURAION을 설정해서 파일 길이 설정
+'''
 
 # 입력 및 출력 폴더 설정
 file_path = os.path.join(os.getcwd())
@@ -26,7 +29,6 @@ def process_audio(file_path):
     file_name = os.path.basename(file_path).replace(".wav", "")
 
     if duration > TARGET_DURATION:
-        # 3초씩 분할
         num_splits = int(np.ceil(duration / TARGET_DURATION))
         for i in range(num_splits):
             start_sample = i * TARGET_DURATION * sr
