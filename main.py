@@ -33,10 +33,10 @@ output:
     1. mel_spec_db: 
 *****************************************'''
 
-def extract_melspectrogram(file_path, n_mels, fixed_length, sr=48000):
+def extract_melspectrogram(file_path, n_mels, fixed_length, sr):
     # 48kHz로 샘플링 (샘플링: 연속적인 오디오 신호를 일정한 간격으로 데이터(샘플)을 추출하는 과정)
     # y: 오디오 신호 배열 (1D), sr: 초당 샘플링 개수
-    y, sr = librosa.load(file_path, sr=48000)
+    y, sr = librosa.load(file_path, sr=sr)
 
     '''
     # 오디오 -> 2D 이미지 변환
